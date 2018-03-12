@@ -9,4 +9,4 @@ python2 tools/train_net.py --cfg path/to/config/file.yaml OUTPUT_DIR path/to/out
 You can configure the script with the settings at the top of the script.
 
 When you run the software you should get a chart like this:
-![example chart](https://github.com/mattifrind/detectron-trainings-visualization/output.png)
+![example chart](https://github.com/mattifrind/detectron-trainings-visualization/blob/master/output.png)
