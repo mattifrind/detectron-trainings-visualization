@@ -50,17 +50,17 @@ import static thorwin.math.Math.polynomial;
 public class VisualizeTraining extends Application {
     
     //#########################################
-        String title = "Chart title"; //chart title
+        String title = "Robot Training"; //chart title
     
     //data configuration
     
-        File inputFile = new File("exampledata.txt");
-    
+        File inputFile = new File("train2.txt");
+        
         boolean secondFile = false; //if you have two files and want to visualize both
         File secondInputFile = new File(""); //second file you want to visualize
         int shiftValue = 0; //value how far the second iteration values should be shifted
     
-        File outputFile = new File("output.png");
+        File outputFile = new File("version2.png");
         
     //chart configuration
         int lowerBoundary = 0;
@@ -77,9 +77,10 @@ public class VisualizeTraining extends Application {
     //#########################################
 
         
-    StackPane root = new StackPane();
+    StackPane rootMain = new StackPane();
+    StackPane rootSecond = new StackPane();
     
-    public void parse(BufferedReader reader, List<String[]> loss, List<String[]> accuracy, List<String[]> lsBbox, List<String[]> lsCls) throws IOException {
+    public void parse(BufferedReader reader, List<String[]> loss, List<String[]> accuracy, List<String[]> lsBbox, List<String[]> lsCls, List<String[]> lr) throws IOException {
         String zeile;
         while ((zeile = reader.readLine()) != null) {
             if (zeile.contains("json_stats:")) {
@@ -89,16 +90,18 @@ public class VisualizeTraining extends Application {
                 String[] obj1 = new String[]{"" + entry.get("iter"), "" + entry.get("loss")},
                         obj2 = new String[]{"" + entry.get("iter"), "" + entry.get("accuracy_cls")},
                         obj3 = new String[]{"" + entry.get("iter"), "" + entry.get("loss_bbox")},
-                        obj4 = new String[]{"" + entry.get("iter"), "" + entry.get("loss_cls")};
+                        obj4 = new String[]{"" + entry.get("iter"), "" + entry.get("loss_cls")},
+                        obj5 = new String[]{"" + entry.get("iter"), "" + entry.get("lr")};
                 loss.add(obj1);
                 accuracy.add(obj2);
                 lsBbox.add(obj3);
                 lsCls.add(obj4);
+                lr.add(obj5);
             }
         }
     }
     
-    public void parseShifted(BufferedReader reader, List<String[]> loss, List<String[]> accuracy, List<String[]> lsBbox, List<String[]> lsCls, int shift) throws IOException {
+    public void parseShifted(BufferedReader reader, List<String[]> loss, List<String[]> accuracy, List<String[]> lsBbox, List<String[]> lsCls, List<String[]> lr, int shift) throws IOException {
         String zeile;
         while ((zeile = reader.readLine()) != null) {
             if (zeile.contains("json_stats:")) {
@@ -108,11 +111,13 @@ public class VisualizeTraining extends Application {
                 String[] obj1 = new String[]{"" + (Integer.parseInt("" + entry.get("iter")) + shift) + "", "" + entry.get("loss")},
                         obj2 = new String[]{"" + (Integer.parseInt("" + entry.get("iter")) + shift) + "", "" + entry.get("accuracy_cls")},
                         obj3 = new String[]{"" + (Integer.parseInt("" + entry.get("iter")) + shift) + "", "" + entry.get("loss_bbox")},
-                        obj4 = new String[]{"" + (Integer.parseInt("" + entry.get("iter")) + shift) + "", "" + entry.get("loss_cls")};
+                        obj4 = new String[]{"" + (Integer.parseInt("" + entry.get("iter")) + shift) + "", "" + entry.get("loss_cls")},
+                        obj5 = new String[]{"" + entry.get("iter"), "" + entry.get("lr")};
                 loss.add(obj1);
                 accuracy.add(obj2);
                 lsBbox.add(obj3);
                 lsCls.add(obj4);
+                lr.add(obj5);
             }
         }
     }
@@ -194,6 +199,36 @@ public class VisualizeTraining extends Application {
         return lineChart;
     }
     
+    public LineChart<Number,Number> createSecondDiagram(List<String[]> lr) {
+        //configuring axis
+        final NumberAxis xAxis = new NumberAxis();
+        final NumberAxis yAxis = new NumberAxis();
+        xAxis.setAutoRanging(false);
+        xAxis.setLabel("Iteration");
+        xAxis.setLowerBound(lowerBoundary);
+        xAxis.setUpperBound(higherBoundary);
+        xAxis.setTickUnit(ticks);
+        yAxis.setLabel("Value");
+        
+        //setup chart
+        final LineChart<Number,Number> lineChart = new LineChart<>(xAxis,yAxis);
+        lineChart.setTitle(title);
+        lineChart.setAnimated(true);
+        lineChart.setCreateSymbols(false);
+        lineChart.getStyleClass().add("chart-series-line");
+        
+        XYChart.Series series = new XYChart.Series();
+        series.setName("learning rate");
+        for (int i = 0; i < lr.size(); i++) {
+            if (Float.parseFloat(lr.get(i)[1]) < 4) {
+                series.getData().add(new XYChart.Data(Integer.parseInt(lr.get(i)[0]), Float.parseFloat(lr.get(i)[1])));
+            }
+        }
+        lineChart.getData().addAll(series);
+
+        return lineChart;
+    }
+    
     /**
      * returns regression series from a list with a specified order
      * @param lst list with iterations and values
@@ -208,6 +243,7 @@ public class VisualizeTraining extends Application {
             ys[i] = Double.parseDouble(lst.get(i)[1]);
         }
         double[] coefficients = polyfit(xs, ys, order);
+        System.out.println(coefficients[1]);
         XYChart.Series regSeries = new XYChart.Series();
         
         for (double x = lowerBoundary; x <= higherBoundary; x += ticks) {
@@ -218,14 +254,57 @@ public class VisualizeTraining extends Application {
         return regSeries;
     }
     
+    public Scene createMainDiagram(ArrayList<String[]> loss, ArrayList<String[]> accuracy, ArrayList<String[]> lossBBox, ArrayList<String[]> lossCls, ArrayList<String[]> lr) {
+        //Button for saving the chart as a png
+        Button btn = new Button("save Image");
+        btn.setOnAction(evt -> {
+            WritableImage image = rootMain.getChildren().get(0).snapshot(new SnapshotParameters(), null);
+            try {
+                ImageIO.write(SwingFXUtils.fromFXImage(image, null), "png", outputFile);
+            } catch (IOException ex) {
+                Logger.getLogger(VisualizeTraining.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        });
+        rootMain.setAlignment(Pos.TOP_LEFT);
+        
+        LineChart<Number, Number> chart = createDiagram(loss, accuracy, lossBBox, lossCls);
+       
+        rootMain.getChildren().addAll(chart, btn);
+        Scene scene = new Scene(rootMain, 1400, 800);
+        scene.getStylesheets().add("/en/frind/visualizedetectron/style.css");
+        return scene;
+    }
+    
+    public Scene createSecondStage(ArrayList<String[]> lr) {
+        //Button for saving the chart as a png
+        Button btn = new Button("save Image");
+        btn.setOnAction(evt -> {
+            WritableImage image = rootSecond.getChildren().get(0).snapshot(new SnapshotParameters(), null);
+            try {
+                ImageIO.write(SwingFXUtils.fromFXImage(image, null), "png", new File(outputFile.getName() + "-2"));
+            } catch (IOException ex) {
+                Logger.getLogger(VisualizeTraining.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        });
+        rootSecond.setAlignment(Pos.TOP_LEFT);
+        
+        LineChart<Number, Number> chart = createSecondDiagram(lr);
+       
+        rootSecond.getChildren().addAll(chart, btn);
+        Scene scene = new Scene(rootSecond, 1400, 800);
+        scene.getStylesheets().add("/en/frind/visualizedetectron/style.css");
+        return scene;
+    }
+    
+    
     @Override
     public void start(Stage primaryStage) throws IOException, InterruptedException {
-        ArrayList<String[]> loss = new ArrayList<>(), accuracy = new ArrayList<>(), lossCls = new ArrayList<>(), lossBBox = new ArrayList<>();
+        ArrayList<String[]> loss = new ArrayList<>(), accuracy = new ArrayList<>(), lossCls = new ArrayList<>(), lossBBox = new ArrayList<>(), lr = new ArrayList<>();
         
         //read and parse first file
         FileReader eingabeStrom = new FileReader(inputFile);
         BufferedReader eingabe = new BufferedReader(eingabeStrom);
-        parse(eingabe, loss, accuracy, lossBBox, lossCls);
+        parse(eingabe, loss, accuracy, lossBBox, lossCls, lr);
         eingabe.close();
         
         //read and parse optional second file
@@ -233,30 +312,16 @@ public class VisualizeTraining extends Application {
             inputFile = secondInputFile;
             eingabeStrom = new FileReader(inputFile);
             eingabe = new BufferedReader(eingabeStrom);
-            parseShifted(eingabe, loss, accuracy, lossBBox, lossCls, shiftValue);
+            parseShifted(eingabe, loss, accuracy, lossBBox, lossCls, lr, shiftValue);
             eingabe.close();
         }
-        
-        //Button for saving the chart as a png
-        Button btn = new Button("save Image");
-        btn.setOnAction(evt -> {
-            WritableImage image = root.getChildren().get(0).snapshot(new SnapshotParameters(), null);
-            try {
-                ImageIO.write(SwingFXUtils.fromFXImage(image, null), "png", outputFile);
-            } catch (IOException ex) {
-                Logger.getLogger(VisualizeTraining.class.getName()).log(Level.SEVERE, null, ex);
-            }
-        });
-        root.setAlignment(Pos.TOP_LEFT);
-        
-        LineChart<Number, Number> chart = createDiagram(loss, accuracy, lossBBox, lossCls);
-        root.getChildren().addAll(chart, btn);
-        Scene scene = new Scene(root, 1400, 800);
-        scene.getStylesheets().add("/en/frind/visualizedetectron/style.css");
-        
-        primaryStage.setTitle("Detectron - training visualization");
-        primaryStage.setScene(scene);
+        primaryStage.setScene(createMainDiagram(loss, accuracy, lossBBox, lossCls, lr));
+        primaryStage.setTitle("Detectron - training visualization - 1");
         primaryStage.show();
+        Stage secondaryStage = new Stage();
+        secondaryStage.setScene(createSecondStage(lr));
+        secondaryStage.setTitle("Detectron - training visualization - 2");
+        secondaryStage.show();
     }
 
     /**

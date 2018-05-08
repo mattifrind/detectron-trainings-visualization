@@ -8,7 +8,8 @@ and open the template in the editor.
     Author     : matti
 */
 .chart-series-line {    
-    -fx-stroke-width: 2px;
+    -fx-stroke-width: 1px;
     -fx-effect: null;
+    -fx-opacity: 1;
 }
 .default-color4.chart-series-line { -fx-stroke-width: 5px; }
